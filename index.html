@@ -65,6 +65,7 @@
   pre{background:#1c1c1a;color:#e6e6e3;padding:14px;border-radius:8px;overflow:auto;font-size:12.5px;line-height:1.5}
   .seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
   .seg button{border:none;background:#fff;padding:11px 22px;font-size:15px;font-weight:600;cursor:pointer;color:var(--muted)}
+  .seg button.active{background:var(--accent);color:#fff}
   .seg button.active[data-mode=in]{background:var(--in);color:#fff}
   .seg button.active[data-mode=out]{background:var(--out);color:#fff}
   #reader{max-width:360px;margin:14px auto;border-radius:10px;overflow:hidden}
@@ -85,8 +86,8 @@
 <header>
   <h1>Етикети &amp; Наличности</h1>
   <nav>
-    <button data-tab="generate" class="active">Генериране</button>
-    <button data-tab="scan">Сканиране</button>
+    <button data-tab="scan" class="active">Сканиране</button>
+    <button data-tab="generate">Генериране</button>
     <button data-tab="catalog">Каталог</button>
     <button data-tab="labels">Етикети</button>
     <button data-tab="settings">Настройки</button>
@@ -97,11 +98,17 @@
   <div id="conn-banner"></div>
 
   <!-- GENERATE -->
-  <section id="tab-generate">
+  <section id="tab-generate" style="display:none">
     <div class="panel">
       <h2>Генериране на нова партида</h2>
       <p class="hint">Изберете артикул или въведете ръчно, задайте брой и цена за витрината. Всеки етикет получава уникален номер и се записва в базата със статус „генериран“.</p>
-      <div class="row"><div class="field" style="grid-column:1/-1"><label>Артикул от каталога</label><select id="gen-catalog"></select></div></div>
+      <div style="margin-bottom:14px">
+        <div class="seg" id="gen-mode">
+          <button data-gmode="manual" class="active">Ръчно въвеждане</button>
+          <button data-gmode="catalog">От каталог</button>
+        </div>
+      </div>
+      <div class="row" id="gen-catalog-wrap" style="display:none"><div class="field" style="grid-column:1/-1"><label>Артикул от каталога</label><select id="gen-catalog"></select></div></div>
       <div class="row" id="gen-fields">
         <div class="field"><label>Артикулен номер</label><input id="gen-article" placeholder="напр. HV-100"></div>
         <div class="field"><label>Модел (текст)</label><input id="gen-model" placeholder="напр. Хавлия Луксор"></div>
@@ -123,7 +130,7 @@
   </section>
 
   <!-- SCAN -->
-  <section id="tab-scan" style="display:none">
+  <section id="tab-scan">
     <div class="panel">
       <h2>Сканиране (телефон или камера)</h2>
       <p class="hint">Изберете режим, стартирайте камерата и сканирайте залепените QR кодове. Сканираното се трупа в списък; натиснете „Потвърди“, за да го запишете наведнъж в базата.</p>
@@ -253,11 +260,11 @@ function esc(s){ return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&l
 function fmtPrice(v){ const n=parseFloat(String(v??"").replace(",",".")); return isFinite(n)?n.toFixed(2):String(v??""); }
 function priceLabel(v){ const p=fmtPrice(v); return p?(p+" "+state.settings.currency):""; }
 function activeExtraNames(){ return state.settings.extraFields.map(s=>(s||"").trim()).filter(Boolean); }
-function statusText(s){ return s==='in_stock'?'в наличност':s==='sold'?'продаден':'генериран'; }
+function statusText(s){ return s==='in_stock'?'в наличност':s==='sold'?'продадено':'генериран'; }
 
 /* ===== състояние ===== */
 const CFG_KEY="linenapp_cfg";
-const DEFAULT_SETTINGS={ extraFields:["","",""], prefix:"", pad:6, next:1, currency:"лв.", perRow:4 };
+const DEFAULT_SETTINGS={ extraFields:["","",""], prefix:"", pad:6, next:1, currency:"€", perRow:4 };
 let state={ settings:{...DEFAULT_SETTINGS}, catalog:[], labels:[], counts:{total:0,in_stock:0,sold:0,generated:0} };
 let sb=null;
 
@@ -289,6 +296,10 @@ create table if not exists labels (
   updated_at timestamptz default now()
 );
 
+-- Дати на входиране/изваждане (добавя колоните, ако ги няма)
+alter table labels add column if not exists stocked_at timestamptz;
+alter table labels add column if not exists sold_at timestamptz;
+
 -- Права за публичния (anon / publishable) ключ
 grant usage on schema public to anon, authenticated;
 grant all on settings, catalog, labels to anon, authenticated;
@@ -309,7 +320,7 @@ create policy "all_labels"   on labels   for all to anon, authenticated using (t
 notify pgrst, 'reload schema';`;
 
 /* ===== слой база данни ===== */
-function rowToLabel(r){ return { number:r.number, articleNumber:r.article_number, model:r.model, price:r.price, extra:r.extra||[], batchId:r.batch_id, batchName:r.batch_name, status:r.status, createdAt:r.created_at }; }
+function rowToLabel(r){ return { number:r.number, articleNumber:r.article_number, model:r.model, price:r.price, extra:r.extra||[], batchId:r.batch_id, batchName:r.batch_name, status:r.status, createdAt:r.created_at, stockedAt:r.stocked_at, soldAt:r.sold_at }; }
 function labelToRow(l){ return { number:l.number, article_number:l.articleNumber, model:l.model, price:l.price, extra:l.extra, batch_id:l.batchId, batch_name:l.batchName, status:l.status, created_at:l.createdAt }; }
 function rowToCat(r){ return { id:r.id, articleNumber:r.article_number, model:r.model, price:r.price, extra:r.extra||[] }; }
 
@@ -321,7 +332,7 @@ async function dbCatDel(id){ const {error}=await sb.from('catalog').delete().eq(
 async function dbLabelsInsert(list){ const {error}=await sb.from('labels').insert(list.map(labelToRow)); if(error) throw error; }
 async function dbLabels(limit=2000){ const {data,error}=await sb.from('labels').select('*').order('created_at',{ascending:false}).limit(limit); if(error) throw error; return (data||[]).map(rowToLabel); }
 async function dbLabelGet(num){ const {data,error}=await sb.from('labels').select('*').eq('number',num).maybeSingle(); if(error) throw error; return data?rowToLabel(data):null; }
-async function dbLabelsSetStatus(nums,status){ const {error}=await sb.from('labels').update({status,updated_at:new Date().toISOString()}).in('number',nums); if(error) throw error; }
+async function dbLabelsSetStatus(nums,status){ const now=new Date().toISOString(); const patch={status,updated_at:now}; if(status==='in_stock') patch.stocked_at=now; if(status==='sold') patch.sold_at=now; const {error}=await sb.from('labels').update(patch).in('number',nums); if(error) throw error; return now; }
 async function dbLabelsDelete(nums){ const {error}=await sb.from('labels').delete().in('number',nums); if(error) throw error; }
 async function dbCount(status){ let q=sb.from('labels').select('*',{count:'exact',head:true}); if(status) q=q.eq('status',status); const {count,error}=await q; if(error) throw error; return count||0; }
 
@@ -344,6 +355,7 @@ async function connect(url,key,silent){
     state.settings = Object.assign({...DEFAULT_SETTINGS}, s||{});
     if(!Array.isArray(state.settings.extraFields)) state.settings.extraFields=["","",""];
     while(state.settings.extraFields.length<3) state.settings.extraFields.push("");
+    if(!state.settings.currency || state.settings.currency==="лв."){ state.settings.currency="€"; await dbSaveSettings(state.settings); }
     if(!s) await dbSaveSettings(state.settings); // първоначален ред
     state.catalog=await dbCatalog();
     state.labels=await dbLabels();
@@ -445,11 +457,12 @@ function exportPDF(list){
 function exportCSV(list,filename){
   if(!list||!list.length){ toast("Няма редове за експорт"); return; }
   const names=activeExtraNames();
-  const head=["Номер","Артикулен №","Модел","Цена","Валута",...names,"Партида","Статус","Дата"];
+  const head=["Номер","Артикулен №","Модел","Цена","Валута",...names,"Партида","Статус","Създаден","Входиран","Продаден"];
   const rows=[head];
+  const d=v=>v?new Date(v).toLocaleString("bg-BG"):"";
   list.forEach(l=>{
     const ex=state.settings.extraFields.map((n,i)=>(n||"").trim()?((l.extra&&l.extra[i])||""):null).filter(v=>v!==null);
-    rows.push([l.number,l.articleNumber,l.model,fmtPrice(l.price),state.settings.currency,...ex,l.batchName||"",statusText(l.status),l.createdAt?new Date(l.createdAt).toLocaleString("bg-BG"):""]);
+    rows.push([l.number,l.articleNumber,l.model,fmtPrice(l.price),state.settings.currency,...ex,l.batchName||"",statusText(l.status),d(l.createdAt),d(l.stockedAt),d(l.soldAt)]);
   });
   const csv=rows.map(r=>r.map(v=>{const s=String(v??"");return /[",;\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}).join(";")).join("\n");
   const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"}), a=document.createElement("a");
@@ -473,6 +486,7 @@ function renderGenerate(){
   state.catalog.forEach(c=>{ const lbl=[c.articleNumber,c.model].filter(Boolean).join(" · ")+(c.price?(" — "+priceLabel(c.price)):""); o+=`<option value="${c.id}">${esc(lbl)}</option>`; });
   sel.innerHTML=o;
   renderExtraInputs($("gen-extra"),"gen");
+  applyGenMode();
 }
 $("gen-catalog").addEventListener("change",e=>{
   const it=state.catalog.find(c=>c.id===e.target.value);
@@ -480,6 +494,14 @@ $("gen-catalog").addEventListener("change",e=>{
     state.settings.extraFields.forEach((n,i)=>{ const el=$("gen-e"+i); if(el) el.value=(it.extra&&it.extra[i])||""; }); }
 });
 let lastBatch=[];
+let genMode="manual";
+function applyGenMode(){ $("gen-catalog-wrap").style.display = genMode==="catalog" ? "block":"none"; }
+document.querySelectorAll("#gen-mode button").forEach(b=>b.addEventListener("click",()=>{
+  genMode=b.dataset.gmode;
+  document.querySelectorAll("#gen-mode button").forEach(x=>x.classList.remove("active"));
+  b.classList.add("active");
+  applyGenMode();
+}));
 $("gen-do").addEventListener("click",async()=>{
   if(!dbReady()){ toast("Първо свържете база (Настройки)"); return; }
   const article=$("gen-article").value.trim(), model=$("gen-model").value.trim(), price=$("gen-price").value.trim();
@@ -584,8 +606,9 @@ $("scan-commit").addEventListener("click",async()=>{
   const status=scanMode==="in"?"in_stock":"sold", nums=[...pending.keys()];
   $("scan-commit").disabled=true;
   try{
-    await dbLabelsSetStatus(nums,status);
-    state.labels.forEach(l=>{ if(nums.includes(l.number)) l.status=status; });
+    const now=await dbLabelsSetStatus(nums,status);
+    const ns=new Set(nums);
+    state.labels.forEach(l=>{ if(ns.has(l.number)){ l.status=status; if(status==='in_stock') l.stockedAt=now; else l.soldAt=now; } });
     toast((scanMode==="in"?"Входирани ":"Извадени ")+nums.length+" артикула");
     pending.clear(); renderPending();
     await refreshCounts();
@@ -642,12 +665,14 @@ function renderLabels(){
   if(!list.length){ t.innerHTML=`<tr><td class="empty">Няма съвпадения.</td></tr>`; return; }
   let head=`<tr><th style="width:28px"></th><th>Номер</th><th>Модел</th><th>Арт. №</th><th class="right">Цена</th>`;
   state.settings.extraFields.forEach(n=>{ if((n||"").trim()) head+=`<th>${esc(n)}</th>`; });
-  head+=`<th>Статус</th></tr>`;
+  head+=`<th>Статус</th><th>Дата</th></tr>`;
   let rows="";
+  const dShort=v=>v?new Date(v).toLocaleString("bg-BG",{day:"2-digit",month:"2-digit",year:"2-digit",hour:"2-digit",minute:"2-digit"}):"";
+  const statusDate=l=> l.status==="sold"?dShort(l.soldAt) : l.status==="in_stock"?dShort(l.stockedAt) : dShort(l.createdAt);
   list.slice(0,2000).forEach(l=>{
     rows+=`<tr><td><input type="checkbox" class="lbl-chk" data-num="${esc(l.number)}"></td><td class="mono">${esc(l.number)}</td><td>${esc(l.model)}</td><td>${esc(l.articleNumber)}</td><td class="right mono">${esc(priceLabel(l.price))}</td>`;
     state.settings.extraFields.forEach((n,i)=>{ if((n||"").trim()) rows+=`<td>${esc((l.extra&&l.extra[i])||"")}</td>`; });
-    rows+=`<td><span class="tag ${esc(l.status)}">${esc(statusText(l.status))}</span></td></tr>`;
+    rows+=`<td><span class="tag ${esc(l.status)}">${esc(statusText(l.status))}</span></td><td class="mono" style="white-space:nowrap">${esc(statusDate(l))}</td></tr>`;
   });
   t.innerHTML=head+rows;
 }
