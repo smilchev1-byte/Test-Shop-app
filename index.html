@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Етикети &amp; Каталог</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<style>
+  :root{
+    --bg:#f4f4f2; --panel:#ffffff; --ink:#1c1c1a; --muted:#6b6b66;
+    --line:#e2e2dd; --accent:#1f6f5c; --accent-soft:#e7f1ee;
+    --danger:#a23b3b; --warn:#9a7b2e; --radius:10px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:ui-sans-serif,system-ui,"Segoe UI",Roboto,Arial,sans-serif;
+    font-size:15px; line-height:1.45;
+  }
+  header{
+    background:var(--ink); color:#fff; padding:14px 20px;
+    display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+  }
+  header h1{font-size:17px; margin:0; font-weight:600; letter-spacing:.2px}
+  nav{display:flex; gap:6px; flex-wrap:wrap; margin-left:auto}
+  nav button{
+    background:transparent; color:#cfcfca; border:1px solid transparent;
+    padding:7px 13px; border-radius:8px; cursor:pointer; font-size:14px;
+  }
+  nav button:hover{color:#fff; background:#333}
+  nav button.active{background:#fff; color:var(--ink); font-weight:600}
+  main{max-width:1000px; margin:22px auto; padding:0 16px}
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:20px; margin-bottom:18px}
+  .panel h2{font-size:16px; margin:0 0 4px}
+  .panel .hint{color:var(--muted); font-size:13px; margin:0 0 16px}
+  label{display:block; font-size:13px; color:var(--muted); margin:0 0 4px}
+  input,select{
+    width:100%; padding:9px 10px; border:1px solid var(--line);
+    border-radius:8px; font-size:14px; background:#fff; color:var(--ink);
+  }
+  input:focus,select:focus{outline:2px solid var(--accent-soft); border-color:var(--accent)}
+  .row{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:12px}
+  .field{min-width:0}
+  button.btn{
+    background:var(--accent); color:#fff; border:none; padding:10px 16px;
+    border-radius:8px; cursor:pointer; font-size:14px; font-weight:600;
+  }
+  button.btn:hover{filter:brightness(1.07)}
+  button.btn.ghost{background:#fff; color:var(--ink); border:1px solid var(--line); font-weight:500}
+  button.btn.ghost:hover{background:#f7f7f5}
+  button.btn.danger{background:var(--danger)}
+  button.btn.sm{padding:6px 10px; font-size:13px}
+  .actions{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+  table{width:100%; border-collapse:collapse; font-size:13.5px}
+  th,td{text-align:left; padding:8px 9px; border-bottom:1px solid var(--line); vertical-align:middle}
+  th{color:var(--muted); font-weight:600; font-size:12.5px; text-transform:uppercase; letter-spacing:.3px}
+  tr:hover td{background:#fafaf8}
+  .tag{display:inline-block; font-size:11.5px; padding:2px 7px; border-radius:20px; background:var(--accent-soft); color:var(--accent)}
+  .right{text-align:right}
+  .mono{font-variant-numeric:tabular-nums; font-feature-settings:"tnum"}
+  .toolbar{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px}
+  .toolbar input[type=search]{max-width:260px}
+  .empty{color:var(--muted); padding:24px 0; text-align:center}
+  .status{position:fixed; left:50%; bottom:24px; transform:translateX(-50%);
+    background:var(--ink); color:#fff; padding:11px 18px; border-radius:10px;
+    font-size:14px; opacity:0; pointer-events:none; transition:opacity .2s; z-index:50; max-width:90%}
+  .status.show{opacity:1}
+  .note{background:var(--accent-soft); border:1px solid #cfe3dd; color:#19584a;
+    border-radius:8px; padding:12px 14px; font-size:13.5px; margin-bottom:16px}
+  .scroll{overflow:auto}
+  .pill-num{font-weight:600}
+  .preview-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:10px; margin-top:14px}
+  .lbl-card{border:1px solid var(--line); border-radius:8px; padding:8px; text-align:center; background:#fff}
+  .lbl-card canvas{width:100%; height:auto}
+  .lbl-card .p{font-weight:700; font-size:15px; margin-top:4px}
+  .lbl-card .n{font-size:11px; color:var(--muted)}
+  .lbl-card .m{font-size:12px; min-height:16px}
+  hr{border:none; border-top:1px solid var(--line); margin:16px 0}
+  .inline-edit td input{padding:6px 8px; font-size:13px}
+  .checkcell{width:30px}
+  @media(max-width:560px){ header h1{width:100%} nav{margin-left:0} }
+</style>
+</head>
+<body>
+<header>
+  <h1>Етикети &amp; Каталог</h1>
+  <nav>
+    <button data-tab="generate" class="active">Генериране</button>
+    <button data-tab="catalog">Каталог</button>
+    <button data-tab="labels">Етикети</button>
+    <button data-tab="settings">Настройки</button>
+  </nav>
+</header>
+
+<main>
+  <!-- GENERATE -->
+  <section id="tab-generate">
+    <div class="panel">
+      <h2>Генериране на нова партида</h2>
+      <p class="hint">Изберете артикул от каталога или въведете ръчно, задайте брой и цена за витрината. Системата създава уникален номер за всеки етикет и записва всичко в таблицата „Етикети“.</p>
+
+      <div class="row">
+        <div class="field" style="grid-column:1 / -1">
+          <label>Артикул от каталога</label>
+          <select id="gen-catalog"></select>
+        </div>
+      </div>
+      <div class="row" id="gen-fields">
+        <div class="field">
+          <label>Артикулен номер</label>
+          <input id="gen-article" placeholder="напр. ХВ-100">
+        </div>
+        <div class="field">
+          <label>Модел (текст)</label>
+          <input id="gen-model" placeholder="напр. Хавлия Луксор">
+        </div>
+        <div class="field">
+          <label>Цена на витрината</label>
+          <input id="gen-price" placeholder="напр. 24.90">
+        </div>
+      </div>
+      <div class="row" id="gen-extra"></div>
+      <div class="row">
+        <div class="field" style="max-width:200px">
+          <label>Брой етикети</label>
+          <input id="gen-qty" type="number" min="1" max="2000" value="10">
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="gen-do">Генерирай и запиши</button>
+      </div>
+    </div>
+
+    <div class="panel" id="gen-result" style="display:none">
+      <h2>Последна партида</h2>
+      <p class="hint" id="gen-result-info"></p>
+      <div class="actions">
+        <button class="btn" id="gen-pdf">Изтегли PDF за печат</button>
+        <button class="btn ghost" id="gen-csv">Изтегли CSV</button>
+      </div>
+      <div class="preview-grid" id="gen-preview"></div>
+    </div>
+  </section>
+
+  <!-- CATALOG -->
+  <section id="tab-catalog" style="display:none">
+    <div class="panel">
+      <h2>Нов артикул в каталога</h2>
+      <p class="hint">Запишете моделите, които използвате често, за да ги избирате бързо при генериране.</p>
+      <div class="row">
+        <div class="field"><label>Артикулен номер</label><input id="cat-article"></div>
+        <div class="field"><label>Модел (текст)</label><input id="cat-model"></div>
+        <div class="field"><label>Цена</label><input id="cat-price"></div>
+      </div>
+      <div class="row" id="cat-extra"></div>
+      <div class="actions"><button class="btn" id="cat-add">Добави в каталога</button></div>
+    </div>
+
+    <div class="panel">
+      <h2>Каталог</h2>
+      <div class="scroll">
+        <table id="cat-table"></table>
+      </div>
+    </div>
+  </section>
+
+  <!-- LABELS -->
+  <section id="tab-labels" style="display:none">
+    <div class="panel">
+      <h2>Генерирани етикети</h2>
+      <p class="hint">Всички уникални номера, които сте създали. Можете да филтрирате, да преизтегляте PDF за избрани и да експортирате CSV.</p>
+      <div class="toolbar">
+        <input type="search" id="lbl-search" placeholder="Търсене по номер / модел / артикул…">
+        <select id="lbl-batch" style="max-width:240px"></select>
+        <span style="flex:1"></span>
+        <span class="hint mono" id="lbl-count"></span>
+      </div>
+      <div class="toolbar">
+        <button class="btn sm ghost" id="lbl-all">Маркирай всички (филтрирани)</button>
+        <button class="btn sm ghost" id="lbl-none">Размаркирай</button>
+        <button class="btn sm" id="lbl-pdf">PDF за избраните</button>
+        <button class="btn sm ghost" id="lbl-csv">CSV за избраните</button>
+        <button class="btn sm danger" id="lbl-del">Изтрий избраните</button>
+      </div>
+      <div class="scroll"><table id="lbl-table"></table></div>
+    </div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="tab-settings" style="display:none">
+    <div class="panel">
+      <h2>Допълнителни полета (до 3)</h2>
+      <p class="hint">Дайте имена на полетата над базовите (Артикулен номер / Модел / Цена). Празно поле = не се използва. Напр. „Цвят“, „Размер“, „Материал“.</p>
+      <div class="row">
+        <div class="field"><label>Поле 1</label><input id="set-f1"></div>
+        <div class="field"><label>Поле 2</label><input id="set-f2"></div>
+        <div class="field"><label>Поле 3</label><input id="set-f3"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Уникални номера и етикет</h2>
+      <div class="row">
+        <div class="field"><label>Префикс (по избор)</label><input id="set-prefix" placeholder="напр. ХВ-"></div>
+        <div class="field"><label>Брой цифри</label><input id="set-pad" type="number" min="3" max="10" value="6"></div>
+        <div class="field"><label>Следващ номер</label><input id="set-next" type="number" min="1"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Валута (текст на етикета)</label><input id="set-curr" placeholder="лв."></div>
+        <div class="field"><label>Етикети на ред (PDF)</label><input id="set-perrow" type="number" min="2" max="8" value="4"></div>
+      </div>
+      <div class="actions"><button class="btn" id="set-save">Запази настройките</button></div>
+    </div>
+
+    <div class="panel">
+      <h2>Резервно копие</h2>
+      <p class="hint">Данните се пазят само в този браузър на това устройство. Сваляйте редовно резервно копие и го пазете, защото изчистване на браузъра ще ги изтрие.</p>
+      <div class="actions">
+        <button class="btn ghost" id="set-export">Свали резервно копие (JSON)</button>
+        <button class="btn ghost" id="set-import">Зареди резервно копие</button>
+        <input type="file" id="set-file" accept="application/json" style="display:none">
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="status" id="status"></div>
+
+<script>
+"use strict";
+
+/* ---------- състояние / съхранение ---------- */
+const KEY = "linenapp_v1";
+const DEFAULT = {
+  settings:{ extraFields:["","",""], prefix:"", pad:6, next:1, currency:"лв.", perRow:4 },
+  catalog:[],
+  labels:[]
+};
+let state = load();
+
+function load(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(!raw) return structuredClone(DEFAULT);
+    const obj = JSON.parse(raw);
+    // подсигуряване на полета
+    obj.settings = Object.assign({}, DEFAULT.settings, obj.settings||{});
+    if(!Array.isArray(obj.settings.extraFields)) obj.settings.extraFields=["","",""];
+    while(obj.settings.extraFields.length<3) obj.settings.extraFields.push("");
+    obj.catalog = obj.catalog||[];
+    obj.labels = obj.labels||[];
+    return obj;
+  }catch(e){ return structuredClone(DEFAULT); }
+}
+function save(){ localStorage.setItem(KEY, JSON.stringify(state)); }
+
+/* ---------- помощни ---------- */
+function $(id){ return document.getElementById(id); }
+function toast(msg){
+  const s=$("status"); s.textContent=msg; s.classList.add("show");
+  clearTimeout(toast._t); toast._t=setTimeout(()=>s.classList.remove("show"),2600);
+}
+function esc(s){ return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function fmtPrice(v){
+  const n=parseFloat(String(v).replace(",","."));
+  if(isFinite(n)) return n.toFixed(2);
+  return String(v??"");
+}
+function priceLabel(v){
+  const p=fmtPrice(v);
+  return p ? (p+" "+state.settings.currency) : "";
+}
+function activeExtraNames(){ return state.settings.extraFields.map(s=>s.trim()).filter(Boolean); }
+
+/* ---------- табове ---------- */
+document.querySelectorAll("nav button").forEach(b=>{
+  b.addEventListener("click",()=>{
+    document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active");
+    const tab=b.dataset.tab;
+    ["generate","catalog","labels","settings"].forEach(t=>{
+      $("tab-"+t).style.display = (t===tab)?"block":"none";
+    });
+    if(tab==="generate") renderGenerate();
+    if(tab==="catalog") renderCatalog();
+    if(tab==="labels") renderLabels();
+    if(tab==="settings") renderSettings();
+  });
+});
+
+/* ---------- НАСТРОЙКИ ---------- */
+function renderSettings(){
+  const s=state.settings;
+  $("set-f1").value=s.extraFields[0]||"";
+  $("set-f2").value=s.extraFields[1]||"";
+  $("set-f3").value=s.extraFields[2]||"";
+  $("set-prefix").value=s.prefix||"";
+  $("set-pad").value=s.pad;
+  $("set-next").value=s.next;
+  $("set-curr").value=s.currency;
+  $("set-perrow").value=s.perRow;
+}
+$("set-save").addEventListener("click",()=>{
+  const s=state.settings;
+  s.extraFields=[$("set-f1").value,$("set-f2").value,$("set-f3").value];
+  s.prefix=$("set-prefix").value.trim();
+  s.pad=Math.max(3,Math.min(10,parseInt($("set-pad").value)||6));
+  s.next=Math.max(1,parseInt($("set-next").value)||1);
+  s.currency=$("set-curr").value.trim()||"лв.";
+  s.perRow=Math.max(2,Math.min(8,parseInt($("set-perrow").value)||4));
+  save(); toast("Настройките са запазени");
+});
+$("set-export").addEventListener("click",()=>{
+  const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="rezervno-kopie-"+new Date().toISOString().slice(0,10)+".json";
+  a.click(); URL.revokeObjectURL(a.href);
+});
+$("set-import").addEventListener("click",()=>$("set-file").click());
+$("set-file").addEventListener("change",e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const obj=JSON.parse(r.result);
+      if(!obj.settings||!obj.labels) throw 0;
+      if(!confirm("Това ще замени текущите данни с тези от файла. Продължаваме?")) return;
+      localStorage.setItem(KEY, JSON.stringify(obj)); // запис, после нормализиране през load()
+      state=load();
+      save(); renderSettings(); renderGenerate(); toast("Резервното копие е заредено");
+    }catch(_){ alert("Невалиден файл."); }
+  };
+  r.readAsText(f);
+  e.target.value="";
+});
+
+/* ---------- КАТАЛОГ ---------- */
+function renderCatalogExtraInputs(container, idPrefix){
+  const names=activeExtraNames();
+  container.innerHTML="";
+  state.settings.extraFields.forEach((name,i)=>{
+    if(!name.trim()) return;
+    const div=document.createElement("div");
+    div.className="field";
+    div.innerHTML=`<label>${esc(name)}</label><input id="${idPrefix}-e${i}">`;
+    container.appendChild(div);
+  });
+}
+function renderCatalog(){
+  renderCatalogExtraInputs($("cat-extra"),"cat");
+  const names=activeExtraNames();
+  const t=$("cat-table");
+  if(!state.catalog.length){
+    t.innerHTML=`<tr><td class="empty">Все още няма артикули в каталога.</td></tr>`;
+    return;
+  }
+  let head=`<tr><th>Артикулен №</th><th>Модел</th><th class="right">Цена</th>`;
+  state.settings.extraFields.forEach(n=>{ if(n.trim()) head+=`<th>${esc(n)}</th>`; });
+  head+=`<th></th></tr>`;
+  let rows="";
+  state.catalog.forEach(item=>{
+    rows+=`<tr data-id="${item.id}"><td>${esc(item.articleNumber)}</td><td>${esc(item.model)}</td><td class="right mono">${esc(priceLabel(item.price))}</td>`;
+    state.settings.extraFields.forEach((n,i)=>{ if(n.trim()) rows+=`<td>${esc(item.extra?.[i]||"")}</td>`; });
+    rows+=`<td class="right"><button class="btn sm danger cat-del" data-id="${item.id}">Изтрий</button></td></tr>`;
+  });
+  t.innerHTML=head+rows;
+  t.querySelectorAll(".cat-del").forEach(b=>b.addEventListener("click",()=>{
+    state.catalog=state.catalog.filter(c=>c.id!==b.dataset.id); save(); renderCatalog(); toast("Изтрит артикул");
+  }));
+}
+$("cat-add").addEventListener("click",()=>{
+  const article=$("cat-article").value.trim();
+  const model=$("cat-model").value.trim();
+  const price=$("cat-price").value.trim();
+  if(!model && !article){ alert("Въведете поне модел или артикулен номер."); return; }
+  const extra=state.settings.extraFields.map((n,i)=>{
+    if(!n.trim()) return "";
+    const el=$("cat-e"+i); return el?el.value.trim():"";
+  });
+  state.catalog.push({ id:"C"+Date.now()+Math.floor(Math.random()*1000), articleNumber:article, model, price, extra });
+  save();
+  $("cat-article").value=""; $("cat-model").value=""; $("cat-price").value="";
+  state.settings.extraFields.forEach((n,i)=>{ const el=$("cat-e"+i); if(el) el.value=""; });
+  renderCatalog(); toast("Добавен артикул");
+});
+
+/* ---------- ГЕНЕРИРАНЕ ---------- */
+function renderGenerate(){
+  // dropdown
+  const sel=$("gen-catalog");
+  let opts=`<option value="">— Ръчно въвеждане —</option>`;
+  state.catalog.forEach(c=>{
+    const lbl=[c.articleNumber,c.model].filter(Boolean).join(" · ")+(c.price?(" — "+priceLabel(c.price)):"");
+    opts+=`<option value="${c.id}">${esc(lbl)}</option>`;
+  });
+  sel.innerHTML=opts;
+  renderGenExtra();
+}
+function renderGenExtra(){
+  const c=$("gen-extra");
+  c.innerHTML="";
+  state.settings.extraFields.forEach((n,i)=>{
+    if(!n.trim()) return;
+    const div=document.createElement("div");
+    div.className="field";
+    div.innerHTML=`<label>${esc(n)}</label><input id="gen-e${i}">`;
+    c.appendChild(div);
+  });
+}
+$("gen-catalog").addEventListener("change",e=>{
+  const item=state.catalog.find(c=>c.id===e.target.value);
+  if(item){
+    $("gen-article").value=item.articleNumber||"";
+    $("gen-model").value=item.model||"";
+    $("gen-price").value=fmtPrice(item.price);
+    state.settings.extraFields.forEach((n,i)=>{ const el=$("gen-e"+i); if(el) el.value=item.extra?.[i]||""; });
+  }
+});
+
+function nextNumbers(count){
+  const s=state.settings;
+  const used=new Set(state.labels.map(l=>l.number));
+  const out=[]; let n=s.next;
+  while(out.length<count){
+    const num=s.prefix+String(n).padStart(s.pad,"0");
+    if(!used.has(num)) out.push(num);
+    n++;
+  }
+  s.next=n;
+  return out;
+}
+
+let lastBatch=[];
+$("gen-do").addEventListener("click",()=>{
+  const article=$("gen-article").value.trim();
+  const model=$("gen-model").value.trim();
+  const price=$("gen-price").value.trim();
+  const qty=Math.max(1,Math.min(2000,parseInt($("gen-qty").value)||0));
+  if(!model && !article){ alert("Въведете поне модел или артикулен номер."); return; }
+  if(!qty){ alert("Въведете брой."); return; }
+  const extra=state.settings.extraFields.map((n,i)=>{ if(!n.trim()) return ""; const el=$("gen-e"+i); return el?el.value.trim():""; });
+  const nums=nextNumbers(qty);
+  const batchId="B"+Date.now();
+  const createdAt=new Date().toISOString();
+  const batchName=(article||model||"партида");
+  lastBatch=[];
+  nums.forEach(num=>{
+    const rec={ number:num, articleNumber:article, model, price:fmtPrice(price), extra, batchId, batchName, createdAt, status:"generated" };
+    state.labels.push(rec); lastBatch.push(rec);
+  });
+  save();
+  $("gen-result").style.display="block";
+  $("gen-result-info").textContent=`Създадени ${qty} етикета · ${batchName} · номера от ${nums[0]} до ${nums[nums.length-1]}.`;
+  showPreview(lastBatch.slice(0,24));
+  toast("Записани "+qty+" етикета");
+});
+
+async function showPreview(list){
+  const wrap=$("gen-preview"); wrap.innerHTML="";
+  for(const rec of list){
+    const card=document.createElement("div");
+    card.className="lbl-card";
+    const c=await qrToCanvas(rec.number,120);
+    card.appendChild(c);
+    const m=document.createElement("div"); m.className="m"; m.textContent=rec.model||rec.articleNumber||""; card.appendChild(m);
+    const p=document.createElement("div"); p.className="p"; p.textContent=priceLabel(rec.price); card.appendChild(p);
+    const n=document.createElement("div"); n.className="n"; n.textContent="№ "+rec.number; card.appendChild(n);
+    wrap.appendChild(card);
+  }
+  if(list.length<lastBatch.length){
+    const more=document.createElement("div");
+    more.className="lbl-card"; more.style.display="flex"; more.style.alignItems="center"; more.style.justifyContent="center";
+    more.innerHTML=`<span class="n">+ още ${lastBatch.length-list.length}</span>`;
+    wrap.appendChild(more);
+  }
+}
+$("gen-pdf").addEventListener("click",()=>exportPDF(lastBatch));
+$("gen-csv").addEventListener("click",()=>exportCSV(lastBatch));
+
+/* ---------- QR ---------- */
+function qrToCanvas(text,size){
+  return new Promise((resolve,reject)=>{
+    const c=document.createElement("canvas");
+    QRCode.toCanvas(c,String(text),{margin:0,width:size,errorCorrectionLevel:"M"},err=>{
+      if(err) reject(err); else resolve(c);
+    });
+  });
+}
+
+/* ---------- рисуване на етикет в canvas (за Кирилица в PDF) ---------- */
+function wrapLines(ctx,text,maxW,maxLines){
+  const words=String(text).split(/\s+/); const lines=[]; let cur="";
+  for(const w of words){
+    const test=cur?cur+" "+w:w;
+    if(ctx.measureText(test).width>maxW && cur){ lines.push(cur); cur=w; }
+    else cur=test;
+    if(lines.length===maxLines-1 && ctx.measureText(cur).width>maxW){ break; }
+  }
+  if(cur) lines.push(cur);
+  if(lines.length>maxLines){ lines.length=maxLines; }
+  // отрязване с многоточие на последния ред
+  if(lines.length===maxLines){
+    let last=lines[maxLines-1];
+    while(ctx.measureText(last+"…").width>maxW && last.length>1) last=last.slice(0,-1);
+    if(words.join(" ")!==lines.join(" ")) lines[maxLines-1]=last+"…";
+  }
+  return lines;
+}
+async function renderLabelDataURL(rec){
+  const W=460,H=600;
+  const c=document.createElement("canvas"); c.width=W; c.height=H;
+  const ctx=c.getContext("2d");
+  ctx.fillStyle="#fff"; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle="#1c1c1a"; ctx.textAlign="center";
+  let y=54;
+  // модел
+  ctx.font="600 34px sans-serif";
+  const mlines=wrapLines(ctx, rec.model||rec.articleNumber||"", W-40, 2);
+  mlines.forEach(l=>{ ctx.fillText(l,W/2,y); y+=40; });
+  // доп. полета
+  const extras=state.settings.extraFields.map((n,i)=>(n.trim()&&rec.extra?.[i])?rec.extra[i]:null).filter(Boolean);
+  if(extras.length){
+    ctx.font="24px sans-serif"; ctx.fillStyle="#6b6b66";
+    const line=wrapLines(ctx, extras.join(" · "), W-40, 1)[0];
+    ctx.fillText(line,W/2,y+4); y+=20;
+    ctx.fillStyle="#1c1c1a";
+  }
+  // QR
+  const qr=await qrToCanvas(rec.number,250);
+  const qx=(W-250)/2; const qy=Math.max(y+10,150);
+  ctx.drawImage(qr,qx,qy,250,250);
+  // цена
+  const pl=priceLabel(rec.price);
+  if(pl){ ctx.font="700 56px sans-serif"; ctx.fillText(pl,W/2,qy+250+58); }
+  // номер
+  ctx.font="22px sans-serif"; ctx.fillStyle="#6b6b66";
+  ctx.fillText("№ "+rec.number, W/2, H-22);
+  return c.toDataURL("image/png");
+}
+
+/* ---------- PDF ---------- */
+async function exportPDF(list){
+  if(!list||!list.length){ alert("Няма етикети за печат."); return; }
+  if(!window.jspdf){ alert("PDF библиотеката не е заредена (нужен е интернет при първо отваряне)."); return; }
+  toast("Подготвям PDF…");
+  const { jsPDF }=window.jspdf;
+  const doc=new jsPDF({unit:"mm",format:"a4"});
+  const margin=10;
+  const perRow=Math.max(2,Math.min(8,state.settings.perRow||4));
+  const usableW=210-margin*2;
+  const cellW=usableW/perRow;
+  const cellH=cellW*1.30;
+  const usableH=297-margin*2;
+  const perCol=Math.max(1,Math.floor(usableH/cellH));
+  const perPage=perRow*perCol;
+  for(let i=0;i<list.length;i++){
+    if(i>0 && i%perPage===0) doc.addPage();
+    const inPage=i%perPage;
+    const col=inPage%perRow;
+    const row=Math.floor(inPage/perRow);
+    const x=margin+col*cellW;
+    const y=margin+row*cellH;
+    const img=await renderLabelDataURL(list[i]);
+    const pad=1.5;
+    doc.addImage(img,"PNG",x+pad,y+pad,cellW-2*pad,cellH-2*pad);
+    doc.setDrawColor(210); doc.setLineWidth(0.1); doc.rect(x,y,cellW,cellH);
+  }
+  doc.save("etiketi-"+new Date().toISOString().slice(0,10)+".pdf");
+  toast("PDF е готов");
+}
+
+/* ---------- CSV ---------- */
+function exportCSV(list){
+  if(!list||!list.length){ alert("Няма редове за експорт."); return; }
+  const names=activeExtraNames();
+  const header=["Номер","Артикулен №","Модел","Цена","Валута",...names,"Партида","Дата","Статус"];
+  const rows=[header];
+  list.forEach(l=>{
+    const ex=state.settings.extraFields.map((n,i)=>n.trim()?(l.extra?.[i]||""):null).filter(v=>v!==null);
+    rows.push([l.number,l.articleNumber,l.model,fmtPrice(l.price),state.settings.currency,...ex,l.batchName||"",new Date(l.createdAt).toLocaleString("bg-BG"),l.status||""]);
+  });
+  const csv=rows.map(r=>r.map(v=>{
+    const s=String(v??""); return /[",;\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;
+  }).join(";")).join("\n");
+  const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob); a.download="etiketi.csv"; a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/* ---------- ТАБЛИЦА С ЕТИКЕТИ ---------- */
+function filteredLabels(){
+  const q=$("lbl-search").value.trim().toLowerCase();
+  const batch=$("lbl-batch").value;
+  return state.labels.filter(l=>{
+    if(batch && l.batchId!==batch) return false;
+    if(!q) return true;
+    return (l.number+" "+(l.model||"")+" "+(l.articleNumber||"")).toLowerCase().includes(q);
+  });
+}
+function renderLabels(){
+  // batch dropdown
+  const sel=$("lbl-batch");
+  const batches=[];
+  const seen=new Set();
+  state.labels.forEach(l=>{ if(!seen.has(l.batchId)){ seen.add(l.batchId); batches.push(l); } });
+  let opts=`<option value="">Всички партиди</option>`;
+  batches.sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
+  batches.forEach(b=>{
+    const cnt=state.labels.filter(x=>x.batchId===b.batchId).length;
+    opts+=`<option value="${b.batchId}">${esc(b.batchName||"партида")} · ${cnt} бр · ${new Date(b.createdAt).toLocaleDateString("bg-BG")}</option>`;
+  });
+  const prev=sel.value; sel.innerHTML=opts; sel.value=prev;
+
+  const list=filteredLabels();
+  $("lbl-count").textContent=list.length+" от "+state.labels.length+" етикета";
+  const t=$("lbl-table");
+  if(!state.labels.length){ t.innerHTML=`<tr><td class="empty">Все още няма генерирани етикети.</td></tr>`; return; }
+  if(!list.length){ t.innerHTML=`<tr><td class="empty">Няма съвпадения за филтъра.</td></tr>`; return; }
+  let head=`<tr><th class="checkcell"></th><th>Номер</th><th>Модел</th><th>Арт. №</th><th class="right">Цена</th>`;
+  state.settings.extraFields.forEach(n=>{ if(n.trim()) head+=`<th>${esc(n)}</th>`; });
+  head+=`<th>Партида</th><th>Статус</th></tr>`;
+  let rows="";
+  list.slice(0,2000).forEach(l=>{
+    rows+=`<tr><td class="checkcell"><input type="checkbox" class="lbl-chk" data-num="${esc(l.number)}"></td>`+
+      `<td class="mono pill-num">${esc(l.number)}</td><td>${esc(l.model)}</td><td>${esc(l.articleNumber)}</td>`+
+      `<td class="right mono">${esc(priceLabel(l.price))}</td>`;
+    state.settings.extraFields.forEach((n,i)=>{ if(n.trim()) rows+=`<td>${esc(l.extra?.[i]||"")}</td>`; });
+    rows+=`<td>${esc(l.batchName||"")}</td><td><span class="tag">${esc(l.status||"")}</span></td></tr>`;
+  });
+  t.innerHTML=head+rows;
+}
+function selectedNums(){
+  return [...document.querySelectorAll(".lbl-chk:checked")].map(c=>c.dataset.num);
+}
+function selectedRecords(){
+  const set=new Set(selectedNums());
+  return state.labels.filter(l=>set.has(l.number));
+}
+$("lbl-search").addEventListener("input",renderLabels);
+$("lbl-batch").addEventListener("change",renderLabels);
+$("lbl-all").addEventListener("click",()=>{ document.querySelectorAll(".lbl-chk").forEach(c=>c.checked=true); });
+$("lbl-none").addEventListener("click",()=>{ document.querySelectorAll(".lbl-chk").forEach(c=>c.checked=false); });
+$("lbl-pdf").addEventListener("click",()=>{ const r=selectedRecords(); if(!r.length){alert("Маркирайте поне един етикет.");return;} exportPDF(r); });
+$("lbl-csv").addEventListener("click",()=>{ const r=selectedRecords(); exportCSV(r.length?r:filteredLabels()); });
+$("lbl-del").addEventListener("click",()=>{
+  const nums=selectedNums();
+  if(!nums.length){ alert("Маркирайте етикети за изтриване."); return; }
+  if(!confirm("Изтриване на "+nums.length+" етикета? Това не може да се върне.")) return;
+  const set=new Set(nums);
+  state.labels=state.labels.filter(l=>!set.has(l.number));
+  save(); renderLabels(); toast("Изтрити "+nums.length+" етикета");
+});
+
+/* ---------- старт ---------- */
+renderGenerate();
+</script>
+</body>
+</html>
