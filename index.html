@@ -267,33 +267,46 @@ function saveCfg(url,key){ localStorage.setItem(CFG_KEY, JSON.stringify({url,key
 function dbReady(){ return !!sb; }
 
 const SQL_SETUP=`-- Изпълнете това веднъж в Supabase: SQL Editor → New query → Run
+-- Безопасно е да се пусне повторно.
 
 create table if not exists settings (
   id text primary key,
   data jsonb not null default '{}'::jsonb
 );
-
 create table if not exists catalog (
   id text primary key,
-  article_number text,
-  model text,
-  price text,
+  article_number text, model text, price text,
   extra jsonb default '[]'::jsonb,
   created_at timestamptz default now()
 );
-
 create table if not exists labels (
   number text primary key,
-  article_number text,
-  model text,
-  price text,
+  article_number text, model text, price text,
   extra jsonb default '[]'::jsonb,
-  batch_id text,
-  batch_name text,
+  batch_id text, batch_name text,
   status text default 'generated',
   created_at timestamptz default now(),
   updated_at timestamptz default now()
-);`;
+);
+
+-- Права за публичния (anon / publishable) ключ
+grant usage on schema public to anon, authenticated;
+grant all on settings, catalog, labels to anon, authenticated;
+
+-- RLS + позволения (за лично ползване: пълен достъп)
+alter table settings enable row level security;
+alter table catalog  enable row level security;
+alter table labels   enable row level security;
+
+drop policy if exists "all_settings" on settings;
+drop policy if exists "all_catalog"  on catalog;
+drop policy if exists "all_labels"   on labels;
+create policy "all_settings" on settings for all to anon, authenticated using (true) with check (true);
+create policy "all_catalog"  on catalog  for all to anon, authenticated using (true) with check (true);
+create policy "all_labels"   on labels   for all to anon, authenticated using (true) with check (true);
+
+-- Презареди схемата
+notify pgrst, 'reload schema';`;
 
 /* ===== слой база данни ===== */
 function rowToLabel(r){ return { number:r.number, articleNumber:r.article_number, model:r.model, price:r.price, extra:r.extra||[], batchId:r.batch_id, batchName:r.batch_name, status:r.status, createdAt:r.created_at }; }
