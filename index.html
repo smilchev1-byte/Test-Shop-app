@@ -79,6 +79,27 @@
   .pendrow .x{margin-left:auto;color:var(--danger);cursor:pointer;background:none;border:none;font-size:18px}
   .overlay{position:fixed;inset:0;background:rgba(28,28,26,.55);display:flex;align-items:flex-start;justify-content:center;padding:30px 14px;z-index:50;overflow:auto}
   .overlay .panel{max-width:560px;width:100%}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:8px}
+  .kpi{border:1px solid var(--line);border-radius:10px;padding:13px 14px;background:#fff}
+  .kpi .v{font-size:23px;font-weight:700;line-height:1.1}
+  .kpi .l{font-size:12.5px;color:var(--muted)} .kpi .s{font-size:11.5px;color:var(--muted);margin-top:3px}
+  .sec-title{font-size:14px;font-weight:600;margin:20px 0 8px}
+  .bars{display:flex;align-items:flex-end;gap:3px;height:150px;padding-top:14px}
+  .bars .bar{flex:1;min-width:4px;background:var(--accent-soft);border-radius:3px 3px 0 0;position:relative;min-height:1px;transition:background .15s}
+  .bars .bar>span{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);font-size:10px;color:#fff;background:var(--ink);padding:2px 6px;border-radius:5px;white-space:nowrap;display:none;z-index:2}
+  .bars .bar:hover{background:var(--accent)} .bars .bar:hover>span{display:block}
+  .axis{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:3px}
+  .hbars{display:flex;flex-direction:column;gap:9px}
+  .hbar .lab{display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;gap:8px}
+  .hbar .lab .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .hbar .lab .vl{color:var(--muted);white-space:nowrap}
+  .hbar .track{height:9px;background:#eee;border-radius:6px;overflow:hidden}
+  .hbar .fill{height:100%;border-radius:6px;background:var(--accent)}
+  .hbar .fill.stock{background:var(--out)}
+  .stacked{display:flex;height:24px;border-radius:7px;overflow:hidden;margin:10px 0 8px}
+  .stacked>div{height:100%} .stacked .g{background:#c7c7c2} .stacked .i{background:var(--in)} .stacked .so{background:var(--out)}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+  .legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:middle}
   @media(max-width:560px){header h1{width:100%}nav{margin-left:0}}
 </style>
 </head>
@@ -90,6 +111,7 @@
     <button data-tab="generate">Генериране</button>
     <button data-tab="catalog">Каталог</button>
     <button data-tab="labels">Етикети</button>
+    <button data-tab="stats">Статистика</button>
     <button data-tab="settings">Настройки</button>
   </nav>
 </header>
@@ -196,6 +218,22 @@
         <button class="btn sm danger" id="lbl-del">Изтрий избраните</button>
       </div>
       <div class="scroll"><table id="lbl-table"></table></div>
+    </div>
+  </section>
+
+  <!-- STATS -->
+  <section id="tab-stats" style="display:none">
+    <div class="panel">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <h2 style="margin:0">Статистика</h2>
+        <select id="stats-period" style="max-width:170px;margin-left:auto">
+          <option value="7">Последни 7 дни</option>
+          <option value="30" selected>Последни 30 дни</option>
+          <option value="90">Последни 90 дни</option>
+        </select>
+      </div>
+      <p class="hint">Приходи и продажби по дни са за избрания период. Наличност, реализация и престой са към момента.</p>
+      <div id="stats-body"></div>
     </div>
   </section>
 
@@ -391,11 +429,12 @@ document.querySelectorAll("nav button").forEach(b=>b.addEventListener("click",()
   document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
   b.classList.add("active");
   const tab=b.dataset.tab;
-  ["generate","scan","catalog","labels","settings"].forEach(t=>$("tab-"+t).style.display=(t===tab)?"block":"none");
+  ["generate","scan","catalog","labels","stats","settings"].forEach(t=>$("tab-"+t).style.display=(t===tab)?"block":"none");
   if(tab==="generate") renderGenerate();
   if(tab==="scan") renderScanSummary();
   if(tab==="catalog") renderCatalog();
   if(tab==="labels") renderLabels();
+  if(tab==="stats") loadStats();
   if(tab==="settings") renderSettingsForm();
   if(tab!=="scan") stopScan();
 }));
@@ -690,6 +729,79 @@ $("lbl-del").addEventListener("click",async()=>{
   try{ await dbLabelsDelete(nums); const s=new Set(nums); state.labels=state.labels.filter(l=>!s.has(l.number)); await refreshCounts(); renderLabels(); toast("Изтрити "+nums.length); }
   catch(e){ toast("Грешка: "+((e&&e.message)||e)); }
 });
+
+/* ===== СТАТИСТИКА ===== */
+let statsCache=null;
+function money(n){ return (Math.round((n||0)*100)/100).toFixed(2)+" "+(state.settings.currency||"€"); }
+async function dbStatsLabels(){
+  const {data,error}=await sb.from('labels').select('model,article_number,price,status,created_at,stocked_at,sold_at,updated_at').limit(100000);
+  if(error) throw error;
+  return (data||[]).map(r=>({model:r.model,articleNumber:r.article_number,price:r.price,status:r.status,createdAt:r.created_at,stockedAt:r.stocked_at,soldAt:r.sold_at,updatedAt:r.updated_at}));
+}
+function dayList(n){ const a=[],t=new Date(); t.setHours(0,0,0,0); for(let i=n-1;i>=0;i--) a.push(new Date(t.getTime()-i*86400000).toISOString().slice(0,10)); return a; }
+function computeStats(labels,period){
+  const cutoff=Date.now()-period*86400000;
+  let revenue=0,soldUnits=0,inStockUnits=0,inStockValue=0,soldAll=0,turnSum=0,turnCnt=0;
+  const status={generated:0,in_stock:0,sold:0}, dayRev={}, soldModel={}, stockModel={};
+  labels.forEach(l=>{
+    const price=parseFloat(String(l.price??"").replace(",","."))||0;
+    if(status[l.status]==null) status[l.status]=0; status[l.status]++;
+    if(l.status==='in_stock'){ inStockUnits++; inStockValue+=price; const m=l.model||l.articleNumber||"—"; const o=stockModel[m]||(stockModel[m]={u:0,v:0}); o.u++; o.v+=price; }
+    if(l.status==='sold'){
+      soldAll++;
+      if(l.stockedAt&&l.soldAt){ const d=(new Date(l.soldAt)-new Date(l.stockedAt))/86400000; if(d>=0){turnSum+=d;turnCnt++;} }
+      const t=l.soldAt?new Date(l.soldAt).getTime():(l.updatedAt?new Date(l.updatedAt).getTime():0);
+      if(t>=cutoff){ soldUnits++; revenue+=price; const m=l.model||l.articleNumber||"—"; const o=soldModel[m]||(soldModel[m]={u:0,r:0}); o.u++; o.r+=price; const k=new Date(t).toISOString().slice(0,10); dayRev[k]=(dayRev[k]||0)+price; }
+    }
+  });
+  return { revenue,soldUnits,inStockUnits,inStockValue,soldAll,
+    sellThrough:(soldAll+inStockUnits)>0?soldAll/(soldAll+inStockUnits)*100:0,
+    avgTurn:turnCnt?turnSum/turnCnt:null, avgPrice:soldUnits?revenue/soldUnits:0,
+    status,dayRev,soldModel,stockModel,period };
+}
+async function loadStats(){
+  if(!dbReady()){ $("stats-body").innerHTML=`<div class="empty">Свържете база данни (Настройки), за да видите статистика.</div>`; return; }
+  $("stats-body").innerHTML=`<div class="empty">Зареждане…</div>`;
+  try{ statsCache=await dbStatsLabels(); renderStats(); }
+  catch(e){ $("stats-body").innerHTML=`<div class="empty">Грешка: ${esc((e&&e.message)||e)}</div>`; }
+}
+function renderStats(){
+  if(!statsCache) return;
+  if(!statsCache.length){ $("stats-body").innerHTML=`<div class="empty">Все още няма данни. Генерирайте етикети и започнете да входирате/изваждате.</div>`; return; }
+  const period=parseInt($("stats-period").value)||30;
+  const s=computeStats(statsCache,period);
+  const days=dayList(period), maxRev=Math.max(1,...days.map(d=>s.dayRev[d]||0));
+  const dlab=d=>d.slice(8,10)+"."+d.slice(5,7);
+  const bars=days.map(d=>{ const v=s.dayRev[d]||0; return `<div class="bar" style="height:${(v/maxRev*100).toFixed(1)}%"><span>${dlab(d)}: ${money(v)}</span></div>`; }).join("");
+  const topSold=Object.entries(s.soldModel).sort((a,b)=>b[1].u-a[1].u).slice(0,8);
+  const maxSold=Math.max(1,...topSold.map(e=>e[1].u));
+  const soldBars=topSold.length?topSold.map(([m,o])=>`<div class="hbar"><div class="lab"><span class="nm">${esc(m)}</span><span class="vl">${o.u} бр · ${money(o.r)}</span></div><div class="track"><div class="fill" style="width:${(o.u/maxSold*100).toFixed(1)}%"></div></div></div>`).join(""):`<div class="empty">Няма продажби в периода.</div>`;
+  const topStock=Object.entries(s.stockModel).sort((a,b)=>b[1].v-a[1].v).slice(0,8);
+  const maxStockV=Math.max(1,...topStock.map(e=>e[1].v));
+  const stockBars=topStock.length?topStock.map(([m,o])=>`<div class="hbar"><div class="lab"><span class="nm">${esc(m)}</span><span class="vl">${o.u} бр · ${money(o.v)}</span></div><div class="track"><div class="fill stock" style="width:${(o.v/maxStockV*100).toFixed(1)}%"></div></div></div>`).join(""):`<div class="empty">Няма артикули в наличност.</div>`;
+  const tot=Math.max(1,(s.status.generated||0)+(s.status.in_stock||0)+(s.status.sold||0));
+  const pct=n=>((n||0)/tot*100).toFixed(1);
+  $("stats-body").innerHTML=`
+    <div class="kpis">
+      <div class="kpi"><div class="v">${money(s.revenue)}</div><div class="l">Приходи (период)</div><div class="s">${s.soldUnits} продажби</div></div>
+      <div class="kpi"><div class="v">${money(s.avgPrice)}</div><div class="l">Средна цена/продажба</div></div>
+      <div class="kpi"><div class="v">${money(s.inStockValue)}</div><div class="l">Стойност на наличността</div><div class="s">${s.inStockUnits} бр в наличност</div></div>
+      <div class="kpi"><div class="v">${s.sellThrough.toFixed(0)}%</div><div class="l">Реализация</div><div class="s">продадени / (продадени + налични)</div></div>
+      <div class="kpi"><div class="v">${s.avgTurn==null?"—":s.avgTurn.toFixed(1)+" дни"}</div><div class="l">Среден престой до продажба</div></div>
+      <div class="kpi"><div class="v">${s.soldAll}</div><div class="l">Общо продадени (всичко)</div></div>
+    </div>
+    <div class="sec-title">Приходи по дни</div>
+    <div class="bars">${bars}</div>
+    <div class="axis"><span>${dlab(days[0])}</span><span>${dlab(days[days.length-1])}</span></div>
+    <div class="sec-title">Топ продавани модели (период)</div>
+    <div class="hbars">${soldBars}</div>
+    <div class="sec-title">Наличност по модели (по стойност)</div>
+    <div class="hbars">${stockBars}</div>
+    <div class="sec-title">Разпределение на всички етикети</div>
+    <div class="stacked"><div class="g" style="width:${pct(s.status.generated)}%"></div><div class="i" style="width:${pct(s.status.in_stock)}%"></div><div class="so" style="width:${pct(s.status.sold)}%"></div></div>
+    <div class="legend"><span><i style="background:#c7c7c2"></i>Генерирани ${s.status.generated||0}</span><span><i style="background:var(--in)"></i>В наличност ${s.status.in_stock||0}</span><span><i style="background:var(--out)"></i>Продадени ${s.status.sold||0}</span></div>`;
+}
+$("stats-period").addEventListener("change",renderStats);
 
 /* ===== НАСТРОЙКИ ===== */
 function renderSettingsForm(){
