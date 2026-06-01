@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Сканиране">
+<meta name="theme-color" content="#1c1c1a">
+<title>Сканиране</title>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<style>
+  :root{ --bg:#f4f4f2; --panel:#fff; --ink:#1c1c1a; --muted:#6b6b66; --line:#e2e2dd;
+    --in:#1f6f5c; --out:#9a5b2e; --danger:#a23b3b; }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:ui-sans-serif,system-ui,"Segoe UI",Roboto,Arial,sans-serif;font-size:16px;line-height:1.4;
+    -webkit-tap-highlight-color:transparent}
+  header{background:var(--ink);color:#fff;padding:max(12px,env(safe-area-inset-top)) 16px 12px;
+    display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:10}
+  header h1{font-size:16px;margin:0;font-weight:600}
+  header .counts{margin-left:auto;display:flex;gap:14px;font-size:12px;text-align:right}
+  header .counts b{display:block;font-size:16px}
+  .gear{background:none;border:none;color:#cfcfca;font-size:20px;cursor:pointer;padding:4px}
+  main{padding:14px;max-width:520px;margin:0 auto;padding-bottom:140px}
+  .seg{display:flex;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:14px}
+  .seg button{flex:1;border:none;background:#fff;padding:16px 0;font-size:17px;font-weight:700;cursor:pointer;color:var(--muted)}
+  .seg button.active[data-mode=in]{background:var(--in);color:#fff}
+  .seg button.active[data-mode=out]{background:var(--out);color:#fff}
+  #reader{width:100%;border-radius:14px;overflow:hidden;background:#000;min-height:60px}
+  .btn{width:100%;border:none;border-radius:12px;padding:15px;font-size:17px;font-weight:700;cursor:pointer;color:#fff;background:var(--ink)}
+  .btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line);font-weight:600}
+  .btn.in{background:var(--in)} .btn.out{background:var(--out)}
+  .btn:disabled{opacity:.45}
+  .stack{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+  .flash{margin:12px 0;padding:14px;border-radius:12px;font-size:16px;font-weight:700;text-align:center;display:none}
+  .flash.ok{display:block;background:#e7f1ee;color:var(--in)}
+  .flash.bad{display:block;background:#f6e3e3;color:var(--danger)}
+  .flash.info{display:block;background:#eef0ee;color:#555}
+  .listhdr{font-size:14px;color:var(--muted);margin:18px 0 6px}
+  .pendrow{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--line)}
+  .pendrow .m{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pendrow .num{font-size:12px;color:var(--muted)}
+  .pendrow .x{color:var(--danger);background:none;border:none;font-size:24px;cursor:pointer;line-height:1}
+  .bar{position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--line);
+    padding:12px 14px max(12px,env(safe-area-inset-bottom));display:flex;gap:10px;max-width:520px;margin:0 auto}
+  .bar .btn{flex:1}
+  .empty{color:var(--muted);text-align:center;padding:16px 0}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+  label{display:block;font-size:13px;color:var(--muted);margin:0 0 4px}
+  input{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;font-size:15px}
+  .note{background:#fbf3e3;border:1px solid #ecd9b0;color:#7a5a1e;border-radius:10px;padding:11px 13px;font-size:13.5px;margin-bottom:12px}
+  .hide{display:none}
+  .status{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);background:var(--ink);color:#fff;
+    padding:11px 18px;border-radius:10px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:30;max-width:90%}
+  .status.show{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <h1>Сканиране</h1>
+  <div class="counts" id="counts"></div>
+  <button class="gear" id="gear" title="Настройки">⚙</button>
+</header>
+
+<main>
+  <!-- connect / settings -->
+  <div class="panel hide" id="connect">
+    <div class="note">Тази страница ползва същата база като основното приложение. Ако вече сте свързвали приложението в този браузър, връзката се пренася автоматично.</div>
+    <div style="margin-bottom:10px"><label>Project URL</label><input id="db-url" placeholder="https://xxxx.supabase.co"></div>
+    <div style="margin-bottom:12px"><label>anon / publishable key</label><input id="db-key" placeholder="sb_publishable_..."></div>
+    <button class="btn" id="db-connect">Свържи</button>
+  </div>
+
+  <!-- scanner -->
+  <div id="scan-ui" class="hide">
+    <div class="seg" id="mode">
+      <button data-mode="in" class="active">Входиране</button>
+      <button data-mode="out">Изваждане</button>
+    </div>
+    <div id="reader"></div>
+    <div class="stack">
+      <button class="btn in" id="start">Старт на камерата</button>
+      <button class="btn ghost" id="stop" disabled>Спри камерата</button>
+    </div>
+    <div class="flash" id="flash"></div>
+    <div class="listhdr">За потвърждаване (<span id="cnt">0</span>)</div>
+    <div id="list"><div class="empty">Все още нищо сканирано.</div></div>
+  </div>
+</main>
+
+<div class="bar hide" id="bar">
+  <button class="btn ghost" id="clear" disabled>Изчисти</button>
+  <button class="btn in" id="commit" disabled>Потвърди</button>
+</div>
+
+<div class="status" id="status"></div>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const CFG_KEY="linenapp_cfg";
+const DEFAULT_SETTINGS={ currency:"€" };
+let sb=null, settings={...DEFAULT_SETTINGS}, counts={in_stock:0,sold:0};
+let scanner=null, scanning=false, mode="in", lastCode="", lastTime=0;
+const pending=new Map();
+
+function toast(m){ const s=$("status"); s.textContent=m; s.classList.add("show"); clearTimeout(toast._t); toast._t=setTimeout(()=>s.classList.remove("show"),2600); }
+function esc(s){ return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function fmtPrice(v){ const n=parseFloat(String(v??"").replace(",",".")); return isFinite(n)?n.toFixed(2):String(v??""); }
+function priceLabel(v){ const p=fmtPrice(v); return p?(p+" "+(settings.currency||"€")):""; }
+function loadCfg(){ try{ return JSON.parse(localStorage.getItem(CFG_KEY)||"null"); }catch(e){ return null; } }
+function saveCfg(url,key){ localStorage.setItem(CFG_KEY,JSON.stringify({url,key})); }
+
+/* ===== база ===== */
+function rowToLabel(r){ return { number:r.number, articleNumber:r.article_number, model:r.model, price:r.price, status:r.status }; }
+async function dbGetSettings(){ const {data,error}=await sb.from('settings').select('data').eq('id','main').maybeSingle(); if(error) throw error; return data?data.data:null; }
+async function dbLabelGet(num){ const {data,error}=await sb.from('labels').select('number,article_number,model,price,status').eq('number',num).maybeSingle(); if(error) throw error; return data?rowToLabel(data):null; }
+async function dbSetStatus(nums,status){ const now=new Date().toISOString(); const patch={status,updated_at:now}; if(status==='in_stock') patch.stocked_at=now; if(status==='sold') patch.sold_at=now; const {error}=await sb.from('labels').update(patch).in('number',nums); if(error) throw error; }
+async function dbCount(status){ let q=sb.from('labels').select('*',{count:'exact',head:true}); if(status) q=q.eq('status',status); const {count,error}=await q; if(error) throw error; return count||0; }
+async function refreshCounts(){ try{ counts.in_stock=await dbCount('in_stock'); counts.sold=await dbCount('sold'); renderCounts(); }catch(e){} }
+function renderCounts(){ $("counts").innerHTML=`<div>В наличност<b>${counts.in_stock}</b></div><div>Продадени<b>${counts.sold}</b></div>`; }
+
+/* ===== свързване ===== */
+async function connect(url,key,silent){
+  if(!window.supabase){ toast("Supabase не е зареден (нужен интернет)"); return false; }
+  sb=window.supabase.createClient(url,key);
+  try{
+    const s=await dbGetSettings();
+    settings=Object.assign({...DEFAULT_SETTINGS}, s||{});
+    await refreshCounts();
+    saveCfg(url,key);
+    $("connect").classList.add("hide"); $("scan-ui").classList.remove("hide"); $("bar").classList.remove("hide");
+    if(!silent) toast("Свързано");
+    return true;
+  }catch(e){
+    sb=null;
+    const msg=(e&&e.message)||String(e);
+    if(/relation|does not exist|schema cache|table/i.test(msg)){ toast("Липсват таблици — настройте ги в основното приложение"); }
+    else if(!silent){ toast("Грешка: "+msg); }
+    showConnect();
+    return false;
+  }
+}
+function showConnect(){ const c=loadCfg(); if(c){ $("db-url").value=c.url||""; $("db-key").value=c.key||""; } $("connect").classList.remove("hide"); $("scan-ui").classList.add("hide"); $("bar").classList.add("hide"); }
+$("gear").addEventListener("click",()=>$("connect").classList.toggle("hide"));
+$("db-connect").addEventListener("click",async()=>{ const u=$("db-url").value.trim(), k=$("db-key").value.trim(); if(!u||!k){ toast("Въведете URL и ключ"); return; } $("db-connect").disabled=true; await connect(u,k,false); $("db-connect").disabled=false; });
+
+/* ===== режим ===== */
+function applyModeColor(){ const inMode=mode==="in"; $("start").className="btn "+(inMode?"in":"out"); $("commit").className="btn "+(inMode?"in":"out"); }
+document.querySelectorAll("#mode button").forEach(b=>b.addEventListener("click",()=>{
+  if(pending.size && !confirm("Смяната на режима ще изчисти списъка. Продължаваме?")) return;
+  mode=b.dataset.mode;
+  document.querySelectorAll("#mode button").forEach(x=>x.classList.remove("active"));
+  b.classList.add("active");
+  pending.clear(); renderList(); applyModeColor();
+}));
+
+/* ===== обратна връзка ===== */
+function beep(ok){ try{ const c=beep._c||(beep._c=new (window.AudioContext||window.webkitAudioContext)()); const o=c.createOscillator(),g=c.createGain(); o.connect(g); g.connect(c.destination); o.frequency.value=ok?880:240; g.gain.value=0.05; o.start(); o.stop(c.currentTime+0.12);}catch(e){} }
+function buzz(ok){ if(navigator.vibrate) navigator.vibrate(ok?60:[40,40,40]); }
+function flash(msg,kind){ const f=$("flash"); f.className="flash "+kind; f.textContent=msg; }
+
+/* ===== сканиране ===== */
+function qrFormats(){ return (window.Html5QrcodeSupportedFormats)?[Html5QrcodeSupportedFormats.QR_CODE]:undefined; }
+async function startScan(){
+  if(scanning) return;
+  if(!sb){ toast("Първо се свържете (⚙)"); showConnect(); return; }
+  if(!window.Html5Qrcode){ toast("Скенерът не е зареден (нужен интернет)"); return; }
+  try{
+    scanner=new Html5Qrcode("reader",{formatsToSupport:qrFormats(),verbose:false});
+    await scanner.start({facingMode:"environment"},
+      {fps:10, qrbox:(vw,vh)=>{const m=Math.floor(Math.min(vw,vh)*0.7);return {width:m,height:m};}},
+      onDecode, ()=>{});
+    scanning=true; updateBtns(); flash("Насочете към QR кода.","info");
+  }catch(e){ toast("Няма достъп до камера: "+((e&&e.message)||e)); scanner=null; scanning=false; updateBtns(); }
+}
+async function stopScan(){ if(scanner){ try{ await scanner.stop(); await scanner.clear(); }catch(e){} } scanner=null; scanning=false; updateBtns(); }
+async function onDecode(text){ const now=Date.now(), code=String(text).trim(); if(code===lastCode && now-lastTime<2500) return; lastCode=code; lastTime=now; await handle(code); }
+async function handle(number){
+  if(pending.has(number)){ flash("Вече е в списъка","info"); return; }
+  let rec; try{ rec=await dbLabelGet(number); }catch(e){ flash("Грешка при заявка","bad"); return; }
+  if(!rec){ flash("Непознат код: "+number,"bad"); beep(false); buzz(false); return; }
+  const target=mode==="in"?"in_stock":"sold";
+  if(rec.status===target){ flash((mode==="in"?"Вече е в наличност":"Вече е продадено")+": "+(rec.model||number),"info"); return; }
+  pending.set(number,rec); renderList(); beep(true); buzz(true);
+  flash((mode==="in"?"+ за входиране: ":"+ за изваждане: ")+(rec.model||number)+(priceLabel(rec.price)?(" — "+priceLabel(rec.price)):""),"ok");
+}
+function renderList(){
+  $("cnt").textContent=pending.size;
+  const w=$("list");
+  if(!pending.size){ w.innerHTML=`<div class="empty">Все още нищо сканирано.</div>`; updateBtns(); return; }
+  let h=""; pending.forEach((r,num)=>{ h+=`<div class="pendrow"><div class="m">${esc(r.model||r.articleNumber||"артикул")}<div class="num">№ ${esc(num)}${priceLabel(r.price)?" · "+esc(priceLabel(r.price)):""}</div></div><button class="x" data-num="${esc(num)}">×</button></div>`; });
+  w.innerHTML=h;
+  w.querySelectorAll(".x").forEach(b=>b.addEventListener("click",()=>{ pending.delete(b.dataset.num); renderList(); }));
+  updateBtns();
+}
+function updateBtns(){
+  $("start").disabled=scanning; $("stop").disabled=!scanning;
+  const has=pending.size>0; $("commit").disabled=!has; $("clear").disabled=!has;
+  $("commit").textContent=(mode==="in"?"Входирай (":"Извади (")+pending.size+")";
+}
+$("start").addEventListener("click",startScan);
+$("stop").addEventListener("click",stopScan);
+$("clear").addEventListener("click",()=>{ pending.clear(); renderList(); flash("Списъкът е изчистен","info"); });
+$("commit").addEventListener("click",async()=>{
+  if(!pending.size) return;
+  const status=mode==="in"?"in_stock":"sold", nums=[...pending.keys()];
+  $("commit").disabled=true;
+  try{ await dbSetStatus(nums,status); toast((mode==="in"?"Входирани ":"Извадени ")+nums.length+" артикула"); pending.clear(); renderList(); await refreshCounts(); }
+  catch(e){ toast("Грешка при запис: "+((e&&e.message)||e)); }
+  finally{ updateBtns(); }
+});
+
+/* ===== старт ===== */
+(function init(){
+  renderCounts(); renderList(); applyModeColor();
+  const c=loadCfg();
+  if(c&&c.url&&c.key) connect(c.url,c.key,true);
+  else showConnect();
+})();
+</script>
+</body>
+</html>
