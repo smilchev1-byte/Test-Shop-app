@@ -1,0 +1,25 @@
+{
+  "name": "Етикети & Наличности",
+  "short_name": "Етикети",
+  "description": "QR етикети, каталог и управление на наличности",
+  "start_url": "/index.html",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4f4f2",
+  "theme_color": "#1c1c1a",
+  "orientation": "any",
+  "lang": "bg",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Сканиране",
+      "short_name": "Скан",
+      "url": "/scan.html",
+      "description": "Бързо входиране и изваждане"
+    }
+  ],
+  "categories": ["business", "productivity"]
+}
