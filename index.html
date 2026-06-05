@@ -18,56 +18,101 @@
 </head>
 <body>
 
-<header>
-  <h1>Етикети &amp; Наличности</h1>
-  <span id="sync-dot" class="sync-dot" title="Офлайн"></span>
-  <nav>
-    <button data-tab="scan"     class="active">Сканиране</button>
-    <button data-tab="generate">Генериране</button>
-    <button data-tab="catalog">Каталог</button>
-    <button data-tab="labels">Етикети</button>
-    <button data-tab="stats">Статистика</button>
-    <button data-tab="settings">Настройки</button>
+<header class="app-header">
+  <div class="header-top">
+    <div class="app-logo">
+      <svg viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="1" y="1" width="6" height="6" rx="1" stroke="white" stroke-width="1.5"/>
+        <rect x="3" y="3" width="2" height="2" fill="white"/>
+        <rect x="11" y="1" width="6" height="6" rx="1" stroke="white" stroke-width="1.5"/>
+        <rect x="13" y="3" width="2" height="2" fill="white"/>
+        <rect x="1" y="11" width="6" height="6" rx="1" stroke="white" stroke-width="1.5"/>
+        <rect x="3" y="13" width="2" height="2" fill="white"/>
+        <rect x="11" y="11" width="2" height="2" fill="white"/>
+        <rect x="14" y="11" width="2" height="2" fill="white"/>
+        <rect x="11" y="14" width="2" height="2" fill="white"/>
+        <rect x="14" y="14" width="2" height="2" fill="white"/>
+      </svg>
+      <h1>Етикети &amp; Наличности</h1>
+    </div>
+    <div class="header-right">
+      <div class="sync-pill" id="sync-pill" title="Офлайн">
+        <span class="dot"></span>
+        <span class="label">Офлайн</span>
+      </div>
+      <button class="icon-btn" id="theme-btn" title="Смени тема">🌙</button>
+    </div>
+  </div>
+  <nav class="app-nav">
+    <button data-tab="scan" class="active">
+      <span class="icon">⊙</span>
+      <span class="nav-label">Сканиране</span>
+    </button>
+    <button data-tab="generate">
+      <span class="icon">✦</span>
+      <span class="nav-label">Генериране</span>
+    </button>
+    <button data-tab="catalog">
+      <span class="icon">≡</span>
+      <span class="nav-label">Каталог</span>
+    </button>
+    <button data-tab="labels">
+      <span class="icon">◈</span>
+      <span class="nav-label">Етикети</span>
+    </button>
+    <button data-tab="stats">
+      <span class="icon">↗</span>
+      <span class="nav-label">Статистика</span>
+    </button>
+    <button data-tab="settings">
+      <span class="icon">⊗</span>
+      <span class="nav-label">Настройки</span>
+    </button>
   </nav>
-  <button class="theme-btn" id="theme-btn" title="Смени тема">🌙</button>
 </header>
 
 <main>
   <div id="conn-banner"></div>
 
-  <!-- SCAN -->
+  <!-- ═══ SCAN ═══ -->
   <section id="tab-scan">
     <div class="panel">
-      <h2>Сканиране (телефон или камера)</h2>
-      <p class="hint">Изберете режим, стартирайте камерата и сканирайте QR кодовете. Натиснете „Потвърди" за запис.</p>
-      <div id="scan-summary" class="summary"></div>
-      <div style="text-align:center;margin:10px 0">
-        <div class="seg" id="scan-mode">
-          <button data-mode="in" class="active">Входиране</button>
-          <button data-mode="out">Изваждане</button>
+      <div class="panel-header">
+        <div>
+          <h2>Сканиране</h2>
+          <p class="hint">Изберете режим, стартирайте камерата и сканирайте QR кодовете.</p>
         </div>
       </div>
-      <div class="actions" style="justify-content:center">
-        <button class="btn" id="scan-start">Старт на камерата</button>
-        <button class="btn ghost" id="scan-stop" disabled>Спри</button>
+      <div id="scan-summary" class="summary-strip"></div>
+      <div style="display:flex;justify-content:center;margin:4px 0 16px">
+        <div class="seg" id="scan-mode">
+          <button data-mode="in" class="active">↓ Входиране</button>
+          <button data-mode="out">↑ Изваждане</button>
+        </div>
+      </div>
+      <div class="actions" style="justify-content:center;margin-bottom:4px">
+        <button class="btn xl" id="scan-start">▶ Старт на камерата</button>
+        <button class="btn xl ghost" id="scan-stop" disabled>■ Спри</button>
       </div>
       <div id="reader"></div>
       <div class="flash" id="scan-flash"></div>
-      <h2 style="font-size:15px;margin-top:20px">За потвърждаване (<span id="pend-count">0</span>)</h2>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:20px 0 8px">
+        <h2 style="font-size:15px;margin:0">За потвърждаване <span style="color:var(--text-3);font-weight:500">(<span id="pend-count">0</span>)</span></h2>
+      </div>
       <div id="pend-list"></div>
-      <div class="actions" style="margin-top:12px">
-        <button class="btn" id="scan-commit" disabled>Потвърди</button>
-        <button class="btn ghost" id="scan-clear" disabled>Изчисти</button>
+      <div class="actions" style="margin-top:14px">
+        <button class="btn xl" id="scan-commit" disabled>Потвърди</button>
+        <button class="btn xl ghost" id="scan-clear" disabled>Изчисти</button>
       </div>
     </div>
   </section>
 
-  <!-- GENERATE -->
+  <!-- ═══ GENERATE ═══ -->
   <section id="tab-generate" style="display:none">
     <div class="panel">
       <h2>Генериране на нова партида</h2>
       <p class="hint">Изберете артикул или въведете ръчно. Всеки етикет получава уникален номер и QR код.</p>
-      <div style="margin-bottom:14px">
+      <div style="margin-bottom:18px">
         <div class="seg" id="gen-mode">
           <button data-gmode="manual" class="active">Ръчно въвеждане</button>
           <button data-gmode="catalog">От каталог</button>
@@ -76,38 +121,43 @@
       <div class="row" id="gen-catalog-wrap" style="display:none">
         <div class="field" style="grid-column:1/-1"><label>Артикул от каталога</label><select id="gen-catalog"></select></div>
       </div>
-      <div class="row" id="gen-fields">
+      <div class="row">
         <div class="field"><label>Артикулен номер</label><input id="gen-article" placeholder="напр. HV-100"></div>
-        <div class="field"><label>Модел (текст)</label><input id="gen-model" placeholder="напр. Хавлия Луксор"></div>
-        <div class="field"><label>Цена на витрината</label><input id="gen-price" placeholder="напр. 24.90"></div>
+        <div class="field"><label>Модел</label><input id="gen-model" placeholder="напр. Хавлия Луксор"></div>
+        <div class="field"><label>Цена на витрината</label><input id="gen-price" placeholder="24.90"></div>
       </div>
       <div class="row" id="gen-extra"></div>
-      <div class="row"><div class="field" style="max-width:200px"><label>Брой етикети</label><input id="gen-qty" type="number" min="1" max="2000" value="10"></div></div>
-      <div class="actions"><button class="btn" id="gen-do">Генерирай и запиши</button></div>
+      <div class="row">
+        <div class="field" style="max-width:180px"><label>Брой етикети</label><input id="gen-qty" type="number" min="1" max="2000" value="10"></div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="gen-do">✦ Генерирай и запиши</button>
+      </div>
     </div>
+
     <div class="panel" id="gen-result" style="display:none">
       <h2>Последна партида</h2>
       <p class="hint" id="gen-result-info"></p>
       <div class="actions">
-        <button class="btn" id="gen-pdf">Изтегли PDF за печат</button>
-        <button class="btn ghost" id="gen-csv">Изтегли CSV</button>
+        <button class="btn" id="gen-pdf">↓ Изтегли PDF за печат</button>
+        <button class="btn ghost" id="gen-csv">↓ Изтегли CSV</button>
       </div>
       <div class="preview-grid" id="gen-preview"></div>
     </div>
   </section>
 
-  <!-- CATALOG -->
+  <!-- ═══ CATALOG ═══ -->
   <section id="tab-catalog" style="display:none">
     <div class="panel">
-      <h2>Нов артикул в каталога</h2>
-      <p class="hint">Запишете честите модели за бърз избор при генериране.</p>
+      <h2>Нов артикул</h2>
+      <p class="hint">Запазете честите модели за бърз избор при генериране.</p>
       <div class="row">
-        <div class="field"><label>Артикулен номер</label><input id="cat-article"></div>
-        <div class="field"><label>Модел (текст)</label><input id="cat-model"></div>
-        <div class="field"><label>Цена</label><input id="cat-price"></div>
+        <div class="field"><label>Артикулен номер</label><input id="cat-article" placeholder="напр. HV-100"></div>
+        <div class="field"><label>Модел</label><input id="cat-model" placeholder="Хавлия Луксор"></div>
+        <div class="field"><label>Цена</label><input id="cat-price" placeholder="24.90"></div>
       </div>
       <div class="row" id="cat-extra"></div>
-      <div class="actions"><button class="btn" id="cat-add">Добави в каталога</button></div>
+      <div class="actions"><button class="btn" id="cat-add">+ Добави в каталога</button></div>
     </div>
     <div class="panel">
       <h2>Каталог</h2>
@@ -115,13 +165,13 @@
     </div>
   </section>
 
-  <!-- LABELS -->
+  <!-- ═══ LABELS ═══ -->
   <section id="tab-labels" style="display:none">
     <div class="panel">
       <h2>Етикети и наличности</h2>
-      <div id="lbl-summary" class="summary"></div>
+      <div id="lbl-summary" class="summary-strip"></div>
       <div class="toolbar">
-        <input type="search" id="lbl-search" placeholder="Търсене по номер / модел / артикул…">
+        <input type="search" id="lbl-search" placeholder="Търсене по номер, модел, артикул…" style="flex:1;max-width:280px">
         <select id="lbl-status" style="max-width:170px">
           <option value="">Всички статуси</option>
           <option value="generated">Генерирани</option>
@@ -129,23 +179,23 @@
           <option value="sold">Продадени</option>
         </select>
         <span style="flex:1"></span>
-        <span class="hint mono" id="lbl-count"></span>
+        <span style="font-size:12.5px;color:var(--text-3);font-variant-numeric:tabular-nums" id="lbl-count"></span>
       </div>
       <div class="toolbar">
-        <button class="btn sm ghost" id="lbl-all">Маркирай показаните</button>
+        <button class="btn sm ghost" id="lbl-all">Маркирай всички</button>
         <button class="btn sm ghost" id="lbl-none">Размаркирай</button>
-        <button class="btn sm" id="lbl-pdf">PDF за избраните</button>
-        <button class="btn sm ghost" id="lbl-csv">CSV за избраните</button>
-        <button class="btn sm danger" id="lbl-del">Изтрий избраните</button>
+        <button class="btn sm" id="lbl-pdf">↓ PDF</button>
+        <button class="btn sm ghost" id="lbl-csv">↓ CSV</button>
+        <button class="btn sm danger" id="lbl-del">Изтрий</button>
       </div>
       <div class="scroll"><table id="lbl-table"></table></div>
     </div>
   </section>
 
-  <!-- STATS -->
+  <!-- ═══ STATS ═══ -->
   <section id="tab-stats" style="display:none">
     <div class="panel">
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:4px">
         <h2 style="margin:0">Статистика</h2>
         <select id="stats-period" style="max-width:170px;margin-left:auto">
           <option value="7">Последни 7 дни</option>
@@ -153,12 +203,12 @@
           <option value="90">Последни 90 дни</option>
         </select>
       </div>
-      <p class="hint">Приходи и продажби по дни за избрания период. Наличност и реализация — към момента.</p>
+      <p class="hint">Приходи и продажби за избрания период. Наличност и реализация — към момента.</p>
       <div id="stats-body"></div>
     </div>
   </section>
 
-  <!-- SETTINGS -->
+  <!-- ═══ SETTINGS ═══ -->
   <section id="tab-settings" style="display:none">
     <div class="panel" id="db-panel">
       <h2>База данни (Supabase)</h2>
@@ -167,45 +217,54 @@
         <div class="field" style="grid-column:1/-1"><label>Project URL</label><input id="db-url" placeholder="https://xxxx.supabase.co"></div>
       </div>
       <div class="row">
-        <div class="field" style="grid-column:1/-1"><label>anon public key</label><input id="db-key" placeholder="eyJhbGciOi..."></div>
+        <div class="field" style="grid-column:1/-1"><label>Anon public key</label><input id="db-key" placeholder="eyJhbGciOi..."></div>
       </div>
       <div class="actions">
         <button class="btn" id="db-connect">Свържи</button>
-        <button class="btn ghost" id="db-sql">Покажи SQL за таблиците</button>
+        <button class="btn ghost" id="db-sql">Покажи SQL</button>
       </div>
-      <div id="db-sql-box" style="display:none;margin-top:14px"></div>
+      <div id="db-sql-box" style="display:none;margin-top:16px"></div>
     </div>
+
     <div class="panel">
-      <h2>Допълнителни полета (до 3)</h2>
-      <p class="hint">Имена на полета над базовите (Артикулен номер / Модел / Цена). Празно = не се ползва.</p>
+      <h2>Допълнителни полета <span style="font-weight:400;color:var(--text-3)">(до 3)</span></h2>
+      <p class="hint">Имена на полета над базовите (Артикулен номер / Модел / Цена). Оставете празно ако не е нужно.</p>
       <div class="row">
-        <div class="field"><label>Поле 1</label><input id="set-f1"></div>
-        <div class="field"><label>Поле 2</label><input id="set-f2"></div>
+        <div class="field"><label>Поле 1</label><input id="set-f1" placeholder="напр. Цвят"></div>
+        <div class="field"><label>Поле 2</label><input id="set-f2" placeholder="напр. Размер"></div>
         <div class="field"><label>Поле 3</label><input id="set-f3"></div>
       </div>
     </div>
+
     <div class="panel">
-      <h2>Уникални номера и етикет</h2>
+      <h2>Номерация и етикет</h2>
       <div class="row">
-        <div class="field"><label>Префикс (по избор)</label><input id="set-prefix" placeholder="напр. HV-"></div>
+        <div class="field"><label>Префикс</label><input id="set-prefix" placeholder="напр. HV-"></div>
         <div class="field"><label>Брой цифри</label><input id="set-pad" type="number" min="3" max="10"></div>
-        <div class="field"><label>Следващ номер</label><input id="set-next" type="number" min="1"></div>
+        <div class="field"><label>Следващ №</label><input id="set-next" type="number" min="1"></div>
       </div>
       <div class="row">
-        <div class="field"><label>Валута (на етикета)</label><input id="set-curr" placeholder="€"></div>
+        <div class="field"><label>Валута</label><input id="set-curr" placeholder="€"></div>
         <div class="field"><label>Етикети на ред (PDF)</label><input id="set-perrow" type="number" min="2" max="8"></div>
       </div>
       <div class="actions"><button class="btn" id="set-save">Запази настройките</button></div>
     </div>
+
     <div class="panel">
       <h2>Резервно копие</h2>
-      <p class="hint">Сваля текущите данни като JSON файл.</p>
-      <div class="actions"><button class="btn ghost" id="set-export">Свали резервно копие (JSON)</button></div>
+      <p class="hint">Сваля всички данни като JSON файл.</p>
+      <div class="actions"><button class="btn ghost" id="set-export">↓ Свали резервно копие</button></div>
     </div>
+
     <div class="panel">
-      <h2>Инсталиране като приложение (PWA)</h2>
-      <p class="hint">Приложението работи офлайн и може да се добави на началния екран. В Chrome/Edge: меню → „Инсталирай приложението". В Safari (iOS): бутон Споделяне → „Добави към началния екран".</p>
-      <div class="note info">Данните се пазят локално в браузъра и се синхронизират с Supabase при наличие на интернет връзка.</div>
+      <h2>Инсталиране като приложение</h2>
+      <p class="hint">Приложението работи офлайн. Добавете го на началния екран:</p>
+      <div class="note info" style="margin-bottom:8px">
+        <div>
+          <strong>Android / Chrome:</strong> меню (⋮) → „Инсталирай приложението"<br>
+          <strong>iPhone / Safari:</strong> бутон Споделяне (□↑) → „Добави към началния екран"
+        </div>
+      </div>
     </div>
   </section>
 </main>

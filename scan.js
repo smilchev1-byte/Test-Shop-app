@@ -69,17 +69,17 @@ function showConnect() {
   if (c) { $("db-url").value=c.url||""; $("db-key").value=c.key||""; }
   $("connect-panel").classList.remove("hide");
   $("scan-ui").classList.add("hide");
-  $("bar-bottom").classList.add("hide");
+  $("action-bar").classList.add("hide");
 }
 
 function showScanUI() {
   $("connect-panel").classList.add("hide");
   $("scan-ui").classList.remove("hide");
-  $("bar-bottom").classList.remove("hide");
+  $("action-bar").classList.remove("hide");
 }
 
-/* ===== gear / connect panel toggle ===== */
-$("theme-btn").addEventListener("click", () => {}); // already bound above
+/* ===== settings / connect panel toggle ===== */
+$("settings-btn").addEventListener("click", () => $("connect-panel").classList.toggle("hide"));
 document.addEventListener("keydown", e => { if (e.key==="Escape") $("connect-panel").classList.add("hide"); });
 
 $("db-connect").addEventListener("click", async () => {
@@ -93,8 +93,10 @@ $("db-connect").addEventListener("click", async () => {
 /* ===== mode ===== */
 function applyModeColor() {
   const inMode = mode==="in";
-  $("start").className  = "btn btn-full " + (inMode?"in":"out");
-  $("commit").className = "btn " + (inMode?"in":"out");
+  $("start").className  = "btn start-btn " + (inMode?"in":"out");
+  const commit = $("commit");
+  commit.classList.remove("in","out");
+  commit.classList.add(inMode ? "in" : "out");
 }
 document.querySelectorAll("#mode button").forEach(b => b.addEventListener("click", () => {
   if (pending.size && !confirm("Смяната на режима ще изчисти списъка. Продължаваме?")) return;
@@ -107,7 +109,7 @@ document.querySelectorAll("#mode button").forEach(b => b.addEventListener("click
 /* ===== feedback ===== */
 function beep(ok) { try{ const c=beep._c||(beep._c=new(window.AudioContext||window.webkitAudioContext)()); const o=c.createOscillator(),g=c.createGain(); o.connect(g); g.connect(c.destination); o.frequency.value=ok?880:240; g.gain.value=0.05; o.start(); o.stop(c.currentTime+0.12);}catch(e){} }
 function buzz(ok) { if(navigator.vibrate) navigator.vibrate(ok?60:[40,40,40]); }
-function flash(msg, kind) { const f=$("flash"); f.className="flash "+kind; f.textContent=msg; }
+function flash(msg, kind) { const f=$("flash"); f.className="flash "+kind; f.textContent=msg; f.classList.remove("hide"); }
 
 /* ===== scanner ===== */
 function qrFormats() { return window.Html5QrcodeSupportedFormats ? [Html5QrcodeSupportedFormats.QR_CODE] : undefined; }
