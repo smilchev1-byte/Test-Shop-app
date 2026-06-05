@@ -55,10 +55,12 @@ create policy "all_labels"   on labels   for all to anon, authenticated using (t
 notify pgrst, 'reload schema';`;
 
 /* ===== sync indicator ===== */
-const syncDot = document.getElementById("sync-dot");
-db.onStatus((status, pending) => {
-  syncDot.className = "sync-dot " + (status === "ok" ? "ok" : status === "pending" ? "pending" : status === "offline" ? "error" : "");
-  syncDot.title = status === "ok" ? "Синхронизирано" : status === "pending" ? `${pending} чакащи операции` : status === "offline" ? "Офлайн" : "";
+const syncPill = document.getElementById("sync-pill");
+db.onStatus((status, pendingCount) => {
+  const labels = { ok: "Синхронизирано", pending: `${pendingCount} чакащи`, offline: "Офлайн", error: "Грешка" };
+  syncPill.className = "sync-pill " + (status === "ok" ? "ok" : status === "pending" ? "pending" : "error");
+  syncPill.querySelector(".label").textContent = labels[status] || "Офлайн";
+  syncPill.title = labels[status] || "";
 });
 
 /* ===== connect ===== */
@@ -80,7 +82,7 @@ async function connectDB(url, key, silent) {
   } catch(e) {
     const msg = (e&&e.message)||String(e);
     if (/relation|does not exist|schema cache|table/i.test(msg)) {
-      renderBanner("Таблиците липсват. Отворете „Настройки" и изпълнете SQL-а.");
+      renderBanner("Таблиците липсват. Отворете 'Настройки' и изпълнете SQL-а.");
       showSqlBox();
     } else {
       renderBanner("Грешка: " + msg);
@@ -289,17 +291,17 @@ const pending = new Map();
 
 function renderScanSummary() {
   $("scan-summary").innerHTML = [
-    `<div class="summary-item"><b>${state.counts.in_stock}</b><span>В наличност</span></div>`,
-    `<div class="summary-item"><b>${state.counts.sold}</b><span>Продадени</span></div>`,
-    `<div class="summary-item"><b>${state.counts.generated}</b><span>Генерирани</span></div>`
+    `<div class="summary-cell"><b>${state.counts.in_stock}</b><span>В наличност</span></div>`,
+    `<div class="summary-cell"><b>${state.counts.sold}</b><span>Продадени</span></div>`,
+    `<div class="summary-cell"><b>${state.counts.generated}</b><span>Генерирани</span></div>`
   ].join("");
 }
 function renderLabelSummary() {
   $("lbl-summary").innerHTML = [
-    `<div class="summary-item"><b>${state.counts.total}</b><span>Общо</span></div>`,
-    `<div class="summary-item"><b>${state.counts.in_stock}</b><span>В наличност</span></div>`,
-    `<div class="summary-item"><b>${state.counts.sold}</b><span>Продадени</span></div>`,
-    `<div class="summary-item"><b>${state.counts.generated}</b><span>Генерирани</span></div>`
+    `<div class="summary-cell"><b>${state.counts.total}</b><span>Общо</span></div>`,
+    `<div class="summary-cell"><b>${state.counts.in_stock}</b><span>В наличност</span></div>`,
+    `<div class="summary-cell"><b>${state.counts.sold}</b><span>Продадени</span></div>`,
+    `<div class="summary-cell"><b>${state.counts.generated}</b><span>Генерирани</span></div>`
   ].join("");
 }
 document.querySelectorAll("#scan-mode button").forEach(b => b.addEventListener("click", () => {
@@ -336,7 +338,7 @@ function renderPending() {
   const w = $("pend-list"); $("pend-count").textContent = pending.size;
   if (!pending.size) { w.innerHTML = `<div class="empty">Все още нищо сканирано.</div>`; updateScanBtns(); return; }
   let h = "";
-  pending.forEach((r,num) => { h += `<div class="pendrow"><span class="mono">${esc(num)}</span><span>${esc(r.model||r.articleNumber||"")}</span><span class="mono">${esc(priceLabel(r.price))}</span><button class="x" data-num="${esc(num)}">×</button></div>`; });
+  pending.forEach((r,num) => { h += `<div class="pendrow"><span class="pnum">${esc(num)}</span><span class="pmod">${esc(r.model||r.articleNumber||"")}</span><span class="pprice">${esc(priceLabel(r.price))}</span><button class="x" data-num="${esc(num)}">×</button></div>`; });
   w.innerHTML = h;
   w.querySelectorAll(".x").forEach(b => b.addEventListener("click", () => { pending.delete(b.dataset.num); renderPending(); }));
   updateScanBtns();
